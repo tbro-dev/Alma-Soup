@@ -10,11 +10,12 @@
 #   - Configure Fail2ban for SSH
 #   - Harden SSH
 #   - Install and enable Caddy
+#   - Validate Caddy configuration
 #   - Configure automatic DNF updates
 #   - Verify critical services
 #
 # Assumptions:
-#   - AlmaLinux 9
+#   - AlmaLinux 10
 #   - Run as root
 #   - Administrator SSH key access already works
 #   - Intended for Hetzner AlmaLinux servers
@@ -23,6 +24,10 @@
 #   This script modifies SSH and firewall configuration.
 #   Keep your current SSH session open until you have verified
 #   that a new SSH session works after the script completes.
+#
+# NOTE:
+#   This script does NOT automatically reboot the server.
+#   A reboot may be appropriate after an OS/kernel update.
 
 set -Eeuo pipefail
 
@@ -30,6 +35,7 @@ readonly SCRIPT_NAME="$(basename "$0")"
 readonly SSH_CONFIG="/etc/ssh/sshd_config"
 readonly FAIL2BAN_CONFIG="/etc/fail2ban/jail.d/sshd.local"
 readonly DNF_AUTOMATIC_CONFIG="/etc/dnf/automatic.conf"
+readonly CADDY_CONFIG="/etc/caddy/Caddyfile"
 
 log() {
     echo
@@ -130,15 +136,49 @@ log "[4/10] Configuring firewall..."
 
 systemctl enable --now firewalld
 
-firewall-cmd --permanent --add-service=ssh
-firewall-cmd --permanent --add-service=http
-firewall-cmd --permanent --add-service=https
+FIREWALL_ZONE="$(firewall-cmd --get-default-zone)"
+
+if [[ -z "${FIREWALL_ZONE}" ]]; then
+    die "Could not determine the default firewalld zone."
+fi
+
+echo "Default firewalld zone: ${FIREWALL_ZONE}"
+
+firewall-cmd \
+    --permanent \
+    --zone="${FIREWALL_ZONE}" \
+    --add-service=ssh
+
+firewall-cmd \
+    --permanent \
+    --zone="${FIREWALL_ZONE}" \
+    --add-service=http
+
+firewall-cmd \
+    --permanent \
+    --zone="${FIREWALL_ZONE}" \
+    --add-service=https
 
 firewall-cmd --reload
 
 echo
-echo "Active firewall services:"
-firewall-cmd --list-services
+echo "Active firewall zone:"
+firewall-cmd --get-active-zones
+
+echo
+echo "Firewall services in ${FIREWALL_ZONE}:"
+firewall-cmd \
+    --zone="${FIREWALL_ZONE}" \
+    --list-services
+
+# Verify required firewall services.
+FIREWALL_SERVICES="$(firewall-cmd --zone="${FIREWALL_ZONE}" --list-services)"
+
+for service in ssh http https; do
+    if ! grep -qw "${service}" <<< "${FIREWALL_SERVICES}"; then
+        die "Required firewall service is not enabled: ${service}"
+    fi
+done
 
 # --------------------------------------------------
 # 5. Configure Fail2ban
@@ -151,6 +191,7 @@ mkdir -p /etc/fail2ban/jail.d
 cat > "${FAIL2BAN_CONFIG}" <<'EOF'
 [sshd]
 enabled = true
+port = ssh
 backend = systemd
 banaction = firewallcmd-rich-rules
 bantime = 1h
@@ -158,13 +199,22 @@ findtime = 10m
 maxretry = 5
 EOF
 
+echo "Fail2ban configuration:"
+cat "${FAIL2BAN_CONFIG}"
+
+# Validate the Fail2ban configuration before starting the service.
+log "Validating Fail2ban configuration..."
+
+fail2ban-client -t
+
 systemctl enable --now fail2ban
 
-# Verify Fail2ban is running and SSH jail is enabled.
+# Verify Fail2ban is running.
 if ! systemctl is-active --quiet fail2ban; then
     die "Fail2ban failed to start."
 fi
 
+# Verify the SSH jail is active.
 if ! fail2ban-client status sshd >/dev/null 2>&1; then
     die "Fail2ban SSH jail is not active."
 fi
@@ -187,16 +237,17 @@ echo "SSH configuration backup: ${SSH_BACKUP}"
 
 # Use a dedicated drop-in rather than repeatedly modifying sshd_config.
 #
-# OpenSSH reads configuration files in lexical order.  The 99-bootstrap.conf
+# OpenSSH reads configuration files in lexical order. The 99-bootstrap.conf
 # filename makes the intended settings easy to identify and maintain.
 #
 # Note:
 #   PermitRootLogin prohibit-password still permits root login using SSH keys.
 #   This is intentional here to avoid unexpectedly locking out an existing
-#   root-only installation. Once a non-root sudo user is confirmed, consider
-#   changing this to:
+#   root-only installation.
 #
-#       PermitRootLogin no
+# Once a non-root sudo user is confirmed, consider changing this to:
+#
+#   PermitRootLogin no
 #
 SSH_DROPIN="/etc/ssh/sshd_config.d/99-bootstrap.conf"
 
@@ -254,6 +305,17 @@ if ! dnf copr list | grep -q '@caddy/caddy'; then
 fi
 
 dnf -y install caddy
+
+# Validate the installed Caddy configuration before starting Caddy.
+if [[ -f "${CADDY_CONFIG}" ]]; then
+    log "Validating Caddy configuration..."
+
+    caddy validate \
+        --config "${CADDY_CONFIG}" \
+        --adapter caddyfile
+else
+    die "Caddy configuration file not found: ${CADDY_CONFIG}"
+fi
 
 systemctl enable --now caddy
 
@@ -323,19 +385,30 @@ done
 
 echo
 echo "Firewall:"
-firewall-cmd --list-services
+echo "  Zone: ${FIREWALL_ZONE}"
+firewall-cmd \
+    --zone="${FIREWALL_ZONE}" \
+    --list-services
 
 echo
 echo "Fail2ban:"
 fail2ban-client status
+fail2ban-client status sshd
+
+echo
+echo "Caddy:"
+caddy validate \
+    --config "${CADDY_CONFIG}" \
+    --adapter caddyfile
 
 echo
 echo "Automatic updates:"
-systemctl is-enabled dnf-automatic.timer
-systemctl is-active dnf-automatic.timer
+echo "  Enabled: $(systemctl is-enabled dnf-automatic.timer)"
+echo "  Active:  $(systemctl is-active dnf-automatic.timer)"
 
 echo
 echo "SSH:"
+sshd -t
 sshd -T | grep -E '^(passwordauthentication|pubkeyauthentication|permitrootlogin) '
 
 # --------------------------------------------------
@@ -361,6 +434,7 @@ echo "  - Caddy"
 echo "  - DNF automatic updates"
 echo
 echo "Firewall:"
+echo "  Zone: ${FIREWALL_ZONE}"
 echo "  - SSH  (22/tcp)"
 echo "  - HTTP (80/tcp)"
 echo "  - HTTPS (443/tcp)"
@@ -369,6 +443,11 @@ echo "SSH:"
 echo "  - Password authentication disabled"
 echo "  - Public-key authentication enabled"
 echo "  - Root password login disabled"
+echo
+echo "Fail2ban:"
+echo "  - SSH jail enabled"
+echo "  - Backend: systemd"
+echo "  - Ban action: firewallcmd-rich-rules"
 echo
 echo "Services:"
 echo "  - firewalld:        $(systemctl is-active firewalld)"
@@ -379,14 +458,16 @@ echo "  - auto updates:     $(systemctl is-active dnf-automatic.timer)"
 echo
 echo "Next steps:"
 echo "  1. Verify a NEW SSH connection before closing this session."
-echo "  2. Configure DNS."
-echo "  3. Configure /etc/caddy/Caddyfile."
-echo "  4. Validate and reload Caddy."
-echo "  5. Install PocketBase."
-echo "  6. Create a dedicated PocketBase system user."
-echo "  7. Create a PocketBase systemd service."
-echo "  8. Configure Caddy as a reverse proxy."
-echo "  9. Configure backups."
+echo "  2. Confirm the firewall allows SSH, HTTP, and HTTPS."
+echo "  3. Confirm Fail2ban SSH jail is active."
+echo "  4. Configure DNS."
+echo "  5. Configure /etc/caddy/Caddyfile."
+echo "  6. Validate and reload Caddy."
+echo "  7. Install PocketBase."
+echo "  8. Create a dedicated PocketBase system user."
+echo "  9. Create a PocketBase systemd service."
+echo " 10. Configure Caddy as a reverse proxy."
+echo " 11. Configure backups."
 echo
 echo "NOTE:"
 echo "  A reboot may be appropriate after the OS upgrade,"
