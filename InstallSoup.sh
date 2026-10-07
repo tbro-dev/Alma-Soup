@@ -226,9 +226,10 @@ if ! systemctl is-active --quiet fail2ban; then
     die "Fail2ban failed to start."
 fi
 
-# Verify the SSH jail is active.
+sleep 5
+ 
 if ! fail2ban-client status sshd >/dev/null 2>&1; then
-    die "Fail2ban SSH jail is not active."
+die "Fail2ban SSH jail is not active."
 fi
 
 echo
