@@ -1,40 +1,108 @@
-# Alma-Soup
+## Usage
 
-A Bash bootstrap script for preparing a fresh AlmaLinux server for hosting web applications and services.
+Clone the repository:
 
-The script is designed primarily for Hetzner AlmaLinux servers and performs basic operating-system updates, SSH hardening, firewall configuration, Fail2ban setup, Caddy installation, and automatic package updates.
+```bash
+git clone https://github.com/tbro-dev/Alma-Soup.git
+cd Alma-Soup
+```
 
-Warning: This script changes SSH authentication settings and firewall rules. Make sure you have working SSH key access and an alternative recovery method before running it on a production server.
+Convert line endings if the files were edited on Windows:
 
-Design Goal
+```bash
+sudo dnf -y install dos2unix
+dos2unix Server10Bootstrap.sh
+dos2unix BootstrapValidation.sh
+```
 
-The purpose of this script is to turn a fresh AlmaLinux server into a reasonable starting point for application deployment:
+Make the scripts executable:
 
-Fresh AlmaLinux Server
-        |
-        v
-   OS Updates
-        |
-        v
- Common Packages
-        |
-        +----> Firewalld
-        |
-        +----> Fail2ban
-        |
-        +----> SSH Hardening
-        |
-        +----> Caddy
-        |
-        +----> Automatic Updates
-        |
-        v
- Application Deployment
-        |
-        +----> PocketBase
-        +----> systemd
-        +----> Caddy reverse proxy
-        +----> HTTPS
+```bash
+chmod +x Server10Bootstrap.sh
+chmod +x BootstrapValidation.sh
+```
 
+Validate the bootstrap script syntax:
 
-The bootstrap is intentionally focused on server preparation. Application-specific configuration should be performed separately.
+```bash
+bash -n Server10Bootstrap.sh
+```
+
+Run the bootstrap:
+
+```bash
+sudo ./Server10Bootstrap.sh
+```
+
+After the bootstrap completes, validate the server:
+
+```bash
+sudo ./BootstrapValidation.sh
+```
+
+## Recommended Workflow
+
+1. Provision a fresh AlmaLinux 10 server.
+2. Keep your existing SSH session open.
+3. Run the bootstrap.
+4. Open a NEW SSH session and verify login works.
+5. Run the validation script.
+6. Review:
+   - firewalld
+   - Fail2ban
+   - SSH configuration
+   - Caddy
+   - automatic updates
+7. Only after validation succeeds should application deployment begin.
+
+## Troubleshooting
+
+### Permission denied
+
+```text
+-bash: ./BootstrapValidation.sh: Permission denied
+```
+
+Fix:
+
+```bash
+chmod +x BootstrapValidation.sh
+```
+
+### bash\r: No such file or directory
+
+```text
+/usr/bin/env: 'bash\r': No such file or directory
+```
+
+Cause: Windows (CRLF) line endings.
+
+Fix:
+
+```bash
+sudo dnf -y install dos2unix
+dos2unix *.sh
+```
+
+### Script must be run a* root
+
+```text*ERROR: This script must be run as *oot.
+```
+
+Run using:
+
+```bash*sudo ./Server10Bootstrap.sh
+```
+
+*o*not switch to a separate root logi* unless necessary.
+
+## Validation
+*The bootstrap is considered succes*ful only when:
+
+- A new SSH sessio* succeeds.
+- fire*alld is active.
+- Fail2ban is acti*e.
+- The*Fail2ban SSH jail is active.
+- C*ddy is active*
+- dnf-automatic.timer is active.
+* BootstrapValidation.sh completes *uccessfully.
