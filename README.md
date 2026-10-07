@@ -86,12 +86,14 @@ dos2unix *.sh
 
 ### Script must be run as root
 
-```text ERROR: This script must be run as root.
+```bash
+text ERROR: This script must be run as root.
 ```
 
 Run using:
 
-```bash sudo ./Server10Bootstrap.sh
+```bash 
+sudo ./Server10Bootstrap.sh
 ```
 
 ## Validation
