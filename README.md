@@ -84,25 +84,23 @@ sudo dnf -y install dos2unix
 dos2unix *.sh
 ```
 
-### Script must be run a* root
+### Script must be run as root
 
-```text*ERROR: This script must be run as *oot.
+```text ERROR: This script must be run as root.
 ```
 
 Run using:
 
-```bash*sudo ./Server10Bootstrap.sh
+```bash sudo ./Server10Bootstrap.sh
 ```
 
-*o*not switch to a separate root logi* unless necessary.
-
 ## Validation
-*The bootstrap is considered succes*ful only when:
+The bootstrap is considered successful only when:
 
-- A new SSH sessio* succeeds.
-- fire*alld is active.
-- Fail2ban is acti*e.
-- The*Fail2ban SSH jail is active.
-- C*ddy is active*
-- dnf-automatic.timer is active.
-* BootstrapValidation.sh completes *uccessfully.
+- A new SSH session succeeds.
+- firewalld is active.
+- Fail2ban is active.
+- The Fail2ban SSH jail is active.
+- Caddy is active
+- dnf-automatic timer is active.
+- BootstrapValidation.sh completes successfully.
