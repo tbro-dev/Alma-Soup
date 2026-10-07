@@ -114,7 +114,16 @@ dnf -y upgrade
 # 3. Install common packages
 # --------------------------------------------------
 
-log "[3/10] Installing common packages..."
+log "[3/10] Enabling repositories and installing common packages..."
+
+log "Enabling EPEL..."
+
+dnf -y install epel-release
+dnf makecache
+
+if ! dnf repolist enabled | grep -q '^epel'; then
+    die "EPEL repository is not enabled."
+fi
 
 dnf -y install \
     git \
@@ -127,6 +136,9 @@ dnf -y install \
     fail2ban \
     policycoreutils-python-utils \
     dnf-automatic
+
+rpm -q fail2ban >/dev/null \
+    || die "Fail2ban was not installed successfully."
 
 # --------------------------------------------------
 # 4. Configure firewalld
