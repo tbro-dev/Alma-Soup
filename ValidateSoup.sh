@@ -36,16 +36,16 @@ pass "Operating system is AlmaLinux 10"
 # --------------------------------------------------
 
 PACKAGES=(
-    git
-    curl
-    wget
-    unzip
-    tar
-    vim
-    firewalld
-    fail2ban
-    caddy
-    dnf-automatic
+git
+curl
+wget
+unzip
+tar
+vim-enhanced
+firewalld
+fail2ban
+caddy
+dnf-automatic
 )
 
 for pkg in "${PACKAGES[@]}"; do
