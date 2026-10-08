@@ -247,6 +247,35 @@ cp -a "${SSH_CONFIG}" "${SSH_BACKUP}"
 
 echo "SSH configuration backup: ${SSH_BACKUP}"
 
+# --------------------------------------------------
+# Safety check: ensure current admin user has SSH keys
+# --------------------------------------------------
+   
+log "Validating SSH key setup..."
+
+if [[ -z "${SUDO_USER:-}" ]]; then
+    die "Unable to determine invoking user."
+fi
+
+ADMIN_HOME="$(getent passwd "${SUDO_USER}" | cut -d: -f6)"
+AUTHORIZED_KEYS="${ADMIN_HOME}/.ssh/authorized_keys"
+
+if [[ ! -f "${AUTHORIZED_KEYS}" ]]; then
+    die "No authorized_keys file found for user '${SUDO_USER}'. Refusing to disable password authentication."
+fi
+
+if [[ ! -s "${AUTHORIZED_KEYS}" ]]; then
+    die "authorized_keys is empty for user '${SUDO_USER}'. Refusing to disable password authentication."
+fi
+
+grep -Eq '^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp)' "${AUTHORIZED_KEYS}" \
+    || die "No valid SSH public keys found in ${AUTHORIZED_KEYS}"
+ 
+echo
+echo "SSH key validation successful."
+echo "User: ${SUDO_USER}"
+echo "Authorized keys file: ${AUTHORIZED_KEYS}"
+
 # Use a dedicated drop-in rather than repeatedly modifying sshd_config.
 #
 # OpenSSH reads configuration files in lexical order. The 99-bootstrap.conf
