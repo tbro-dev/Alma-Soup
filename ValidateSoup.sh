@@ -120,7 +120,7 @@ grep -q '^passwordauthentication no$' <<< "$SSH_CONFIG" \
 grep -q '^pubkeyauthentication yes$' <<< "$SSH_CONFIG" \
     || fail "PubkeyAuthentication not enabled"
 
-grep -q '^permitrootlogin prohibit-password$' <<< "$SSH_CONFIG" \
+grep -Eq '^permitrootlogin (prohibit-password|without-password)$' <<< "$SSH_CONFIG" \
     || fail "PermitRootLogin not configured correctly"
 
 pass "SSH hardening verified"
