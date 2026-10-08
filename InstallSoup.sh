@@ -289,7 +289,7 @@ grep -q '^passwordauthentication no$' <<< "${SSH_EFFECTIVE_CONFIG}" \
 grep -q '^pubkeyauthentication yes$' <<< "${SSH_EFFECTIVE_CONFIG}" \
     || die "Effective SSH configuration does not enable public-key authentication."
 
-grep -q '^permitrootlogin prohibit-password$' <<< "${SSH_EFFECTIVE_CONFIG}" \
+grep -Eq '^permitrootlogin (prohibit-password|without-password)$' <<< "${SSH_EFFECTIVE_CONFIG}" \
     || die "Effective SSH configuration does not contain the expected root-login policy."
 
 echo
